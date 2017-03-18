@@ -7,7 +7,6 @@ from functools import partial
 import torch
 from torch import nn, optim
 from torch.autograd import Variable
-from torch.nn import functional
 from torch.nn.utils import clip_grad_norm
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
@@ -69,6 +68,7 @@ def main():
     else:
         raise ValueError
     fc = nn.Linear(in_features=hidden_size, out_features=10)
+    loss_fn = nn.CrossEntropyLoss()
     params = list(model.parameters()) + list(fc.parameters())
     optimizer = optim.RMSprop(params=params, lr=1e-3, momentum=0.9)
 
@@ -82,7 +82,7 @@ def main():
             hx = (h0, c0)
         _, (h_n, _) = model(input_=data, hx=hx)
         logits = fc(h_n[0])
-        loss = functional.cross_entropy(input=logits, target=label)
+        loss = loss_fn(input=logits, target=label)
         accuracy = (logits.max(1)[1] == label).float().mean()
         return loss, accuracy
 

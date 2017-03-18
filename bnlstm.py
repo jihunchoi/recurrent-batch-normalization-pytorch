@@ -19,9 +19,9 @@ class LSTMCell(nn.Module):
         self.hidden_size = hidden_size
         self.use_bias = use_bias
         self.weight_ih = nn.Parameter(
-            torch.FloatTensor(4 * hidden_size, input_size))
+            torch.FloatTensor(input_size, 4 * hidden_size))
         self.weight_hh = nn.Parameter(
-            torch.FloatTensor(4 * hidden_size, hidden_size))
+            torch.FloatTensor(hidden_size, 4 * hidden_size))
         if use_bias:
             self.bias = nn.Parameter(torch.FloatTensor(4 * hidden_size))
         else:
@@ -33,11 +33,10 @@ class LSTMCell(nn.Module):
         Initialize parameters following the way proposed in the paper.
         """
 
-        # All weight matrices are orthogonally initialized.
         self.weight_ih.data.set_(
             init.orthogonal(torch.FloatTensor(*self.weight_ih.size())))
         weight_hh_data = torch.eye(self.hidden_size)
-        weight_hh_data = weight_hh_data.repeat(4, 1)
+        weight_hh_data = weight_hh_data.repeat(1, 4)
         self.weight_hh.data.set_(weight_hh_data)
         # The bias is just set to zero vectors.
         self.bias.data.fill_(0)
@@ -57,15 +56,11 @@ class LSTMCell(nn.Module):
 
         h_0, c_0 = hx
         batch_size = h_0.size(0)
-        weight_hh_batch = (self.weight_hh.unsqueeze(0)
-                           .expand(batch_size, *self.weight_hh.size()))
-        weight_ih_batch = (self.weight_ih.unsqueeze(0)
-                           .expand(batch_size, *self.weight_ih.size()))
         bias_batch = (self.bias.unsqueeze(0)
                       .expand(batch_size, *self.bias.size()))
-        wh = torch.bmm(weight_hh_batch, h_0.unsqueeze(2)).squeeze(2)
-        wi = torch.bmm(weight_ih_batch, input_.unsqueeze(2)).squeeze(2)
-        f, i, o, g = torch.split(wh + wi + bias_batch,
+        wh_b = torch.addmm(bias_batch, h_0, self.weight_hh)
+        wi = torch.mm(input_, self.weight_ih)
+        f, i, o, g = torch.split(wh_b + wi,
                                  split_size=self.hidden_size, dim=1)
         c_1 = torch.sigmoid(f)*c_0 + torch.sigmoid(i)*torch.tanh(g)
         h_1 = torch.sigmoid(o) * torch.tanh(c_1)
@@ -90,9 +85,9 @@ class BNLSTMCell(nn.Module):
         self.hidden_size = hidden_size
         self.use_bias = use_bias
         self.weight_ih = nn.Parameter(
-            torch.FloatTensor(4 * hidden_size, input_size))
+            torch.FloatTensor(input_size, 4 * hidden_size))
         self.weight_hh = nn.Parameter(
-            torch.FloatTensor(4 * hidden_size, hidden_size))
+            torch.FloatTensor(hidden_size, 4 * hidden_size))
         if use_bias:
             self.bias = nn.Parameter(torch.FloatTensor(4 * hidden_size))
         else:
@@ -114,7 +109,7 @@ class BNLSTMCell(nn.Module):
         # The hidden-to-hidden weight matrix is initialized as an identity
         # matrix.
         weight_hh_data = torch.eye(self.hidden_size)
-        weight_hh_data = weight_hh_data.repeat(4, 1)
+        weight_hh_data = weight_hh_data.repeat(1, 4)
         self.weight_hh.data.set_(weight_hh_data)
         # The bias is just set to zero vectors.
         self.bias.data.fill_(0)
@@ -143,14 +138,10 @@ class BNLSTMCell(nn.Module):
 
         h_0, c_0 = hx
         batch_size = h_0.size(0)
-        weight_hh_batch = (self.weight_hh.unsqueeze(0)
-                           .expand(batch_size, *self.weight_hh.size()))
-        weight_ih_batch = (self.weight_ih.unsqueeze(0)
-                           .expand(batch_size, *self.weight_ih.size()))
         bias_batch = (self.bias.unsqueeze(0)
                       .expand(batch_size, *self.bias.size()))
-        wh = torch.bmm(weight_hh_batch, h_0.unsqueeze(2)).squeeze(2)
-        wi = torch.bmm(weight_ih_batch, input_.unsqueeze(2)).squeeze(2)
+        wh = torch.mm(h_0, self.weight_hh)
+        wi = torch.mm(input_, self.weight_ih)
         bn_wh = self.bn_hh(wh)
         bn_wi = self.bn_ih(wi)
         f, i, o, g = torch.split(bn_wh + bn_wi + bias_batch,
