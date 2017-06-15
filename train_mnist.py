@@ -39,7 +39,7 @@ def main():
     if pmnist:
         perm = torch.randperm(784)
     else:
-        perm = torch.range(0, 783).long()
+        perm = torch.arange(0, 784).long()
     train_dataset = datasets.MNIST(
         root=data_path, train=True,
         transform=transforms.Compose([transforms.ToTensor(),
@@ -61,7 +61,8 @@ def main():
 
     if model_name == 'bnlstm':
         model = LSTM(cell_class=BNLSTMCell, input_size=1,
-                     hidden_size=hidden_size, batch_first=True)
+                     hidden_size=hidden_size, batch_first=True,
+                     max_length=784)
     elif model_name == 'lstm':
         model = LSTM(cell_class=LSTMCell, input_size=1,
                      hidden_size=hidden_size, batch_first=True)
