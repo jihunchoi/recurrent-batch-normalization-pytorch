@@ -233,19 +233,21 @@ class LSTM(nn.Module):
         self.batch_first = batch_first
         self.dropout = dropout
 
-        self.cells = []
         for layer in range(num_layers):
             layer_input_size = input_size if layer == 0 else hidden_size
             cell = cell_class(input_size=layer_input_size,
                               hidden_size=hidden_size,
                               **kwargs)
-            self.cells.append(cell)
             setattr(self, 'cell_{}'.format(layer), cell)
         self.dropout_layer = nn.Dropout(dropout)
         self.reset_parameters()
 
+    def get_cell(self, layer):
+        return getattr(self, 'cell_{}'.format(layer))
+
     def reset_parameters(self):
-        for cell in self.cells:
+        for layer in range(self.num_layers):
+            cell = self.get_cell(layer)
             cell.reset_parameters()
 
     @staticmethod
@@ -273,7 +275,8 @@ class LSTM(nn.Module):
         if length is None:
             length = Variable(torch.LongTensor([max_time] * batch_size))
             if input_.is_cuda:
-                length = length.cuda()
+                device = input_.get_device()
+                length = length.cuda(device)
         if hx is None:
             hx = Variable(input_.data.new(batch_size, self.hidden_size).zero_())
             hx = (hx, hx)
@@ -281,8 +284,9 @@ class LSTM(nn.Module):
         c_n = []
         layer_output = None
         for layer in range(self.num_layers):
+            cell = self.get_cell(layer)
             layer_output, (layer_h_n, layer_c_n) = LSTM._forward_rnn(
-                cell=self.cells[layer], input_=input_, length=length, hx=hx)
+                cell=cell, input_=input_, length=length, hx=hx)
             input_ = self.dropout_layer(layer_output)
             h_n.append(layer_h_n)
             c_n.append(layer_c_n)
